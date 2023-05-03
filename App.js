@@ -1,9 +1,10 @@
 import React, {useEffect, useState} from 'react';
-import {Alert, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import axios from 'axios';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
 import {isSameDay} from 'date-fns';
+import moment from "moment";
 
 const Stack = createStackNavigator();
 
@@ -14,20 +15,15 @@ const App = () => {
         fetchData();
     }, []);
 
+
     const fetchData = async () => {
         try {
-            const response = await axios.get("http://localhost:1337/api/parts-of-days?populate=*", {
-                headers: {
-                    "Content-Type": "application/json;charset=UTF-8",
-                    "Access-Control-Allow-Origin": true,
-                    "Access-Control-Request-Headers": "Content-Type, x-requested-with",
-                }
-            });
-            const data = response.data.filter((partOfDay) => isSameDay(new Date(partOfDay.attributes.day), new Date()));
+            const response = await axios.get("http://192.168.0.27:1337/api/parts-of-days?populate=*");
+            const today = new Date().toISOString().substr(0, 10); // Récupère la date du jour au format ISO
+            const data = response.data.data.filter((partOfDay) => partOfDay.attributes.day.startsWith(today));
             setData(data);
-            console.log(data)
         } catch (error) {
-            console.log(error);
+            console.error(error);
         }
     };
 
@@ -35,115 +31,222 @@ const App = () => {
         navigation.navigate('PartOfDayDetailsScreen', {partOfDay});
     };
 
-    const stopPartOfDay = async (partOfDayId) => {
-        const confirmed = await new Promise((resolve, reject) => {
-            Alert.alert("Confirmation", "Êtes-vous sûr de vouloir arrêter cette partie de la journée?", [{
-                text: "Annuler", style: "cancel", onPress: () => resolve(false)
-            }, {
-                text: "OK", onPress: () => resolve(true)
-            }]);
-        });
-
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            const response = await axios.put(`http://localhost:1337/api/parts-of-days/${partOfDayId}`, {
-                attributes: {
-                    status: 'not_started'
-                }
-            });
-
-            const updatedPartOfDays = partOfDays.map((partOfDay) => {
-                if (partOfDay.id === partOfDayId) {
-                    return {
-                        ...partOfDay, attributes: {
-                            ...partOfDay.attributes, status: response.data.data.attributes.status,
-                        }
-                    };
-                } else {
-                    return partOfDay;
-                }
-            });
-
-            setData(updatedPartOfDays);
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-
+    const reloadPartsOfDays = () => {
+        axios
+            .get('http://192.168.0.27:1337/api/parts-of-days?populate=*')
+            .then((response) => {
+                const partsOfDays = response.data.data.filter((partOfDay) =>
+                    isSameDay(new Date(partOfDay.attributes.day), new Date())
+                )
+                setData(partsOfDays)
+            })
+            .catch((error) => {
+                console.error(error)
+            })
+    }
     const PartOfDayDetailsScreen = ({route}) => {
         const {partOfDay} = route.params;
-        return (<View style={styles.container}>
-            <Text style={styles.title}>Détails de la partie de la journée</Text>
-            <Text>Date : {partOfDay.attributes.day}</Text>
-            <Text>Status : {partOfDay.attributes.status}</Text>
-            {partOfDay.attributes.status === 'in_progress' && (<TouchableOpacity
-                style={styles.button}
-                onPress={() => stopPartOfDay(partOfDay.id)}
-            >
-                <Text style={styles.buttonText}>Arrêter</Text>
-            </TouchableOpacity>)}
-        </View>);
-    };
+        const formatedDate = moment(partOfDay.attributes.day).format("DD/MM/YYYY");
+        const time = moment(partOfDay.attributes.day).format("HH:mm");
+        const [status, setStatus] = useState(partOfDay.attributes.status);
 
-    return (<NavigationContainer>
-        <Stack.Navigator>
-            <Stack.Screen
-                name="MainScreen"
-                options={{title: 'Liste des parties de la journée'}}
-            >
-                {({navigation}) => (<View style={styles.container}>
-                    <View style={styles.table}>
-                        <View style={styles.row}>
-                            <Text style={[styles.headerCell, styles.leftHeaderCell]}>Date</Text>
-                            <Text style={[styles.headerCell, styles.rightHeaderCell]}>Time</Text>
-                            <Text style={[styles.headerCell, styles.rightHeaderCell]}>Status</Text>
-                        </View>
-                        {partOfDays.map((partOfDay) => (<TouchableOpacity
-                            style={styles.row}
-                            key={partOfDay.id}
-                            onPress={() => handlePartOfDayPress(partOfDay, navigation)}
-                        >
-                            <Text
-                                style={[styles.cell, styles.leftCell]}>{partOfDay.attributes.day}</Text>
-                        </TouchableOpacity>))}
+        const handleStatusChange = async (partOfDayId) => {
+            try {
+                if (status === "not_started") {
+                    const updatedPartOfDay = {
+                        data: {
+                            id: partOfDayId,
+                            day: partOfDay.attributes.day,
+                            status: partOfDay.attributes.status === 'not_started' ? 'in_progress' : 'completed'
+                        }
+                    };
+                    await axios.put(`http://192.168.0.27:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
+                    setStatus("in_progress");
+                } else if (status === "in_progress") {
+                    const updatedPartOfDay = {
+                        data: {
+                            id: partOfDayId,
+                            day: partOfDay.attributes.day,
+                            status: partOfDay.attributes.status = 'completed'
+                        }
+                    };
+                    await axios.put(`http://192.168.0.27:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
+                    setStatus("completed");
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        return (
+            <View style={styles.container}>
+                <Text style={styles.title}>Détails de la partie de la journée</Text>
+                <View style={styles.infoContainer}>
+                    <Text style={styles.infoLabel}>Titre:</Text>
+                    <Text style={styles.infoText}>{partOfDay.attributes.scenario.data.attributes.title}</Text>
+                </View>
+                <View style={styles.infoContainer}>
+                    <Text style={styles.infoLabel}>Date:</Text>
+                    <Text style={styles.infoText}>{formatedDate}</Text>
+                </View>
+                <View style={styles.infoContainer}>
+                    <Text style={styles.infoLabel}>Heure:</Text>
+                    <Text style={styles.infoText}>{time}</Text>
+                </View>
+                <View style={styles.infoContainer}>
+                    <Text style={styles.infoLabel}>Statut:</Text>
+                    <View
+                        style={[styles.statusContainer, {backgroundColor: status === 'not_started' ? '#F6C90E' : status === 'in_progress' ? '#3DBB3D' : '#E5373A'}]}>
+                        <Text style={styles.statusText}>{status}</Text>
                     </View>
-                </View>)}
-            </Stack.Screen>
-            <Stack.Screen
-                name="PartOfDayDetailsScreen"
-                component={PartOfDayDetailsScreen}
-                options={{title: 'Détails de la partie de la journée'}}
-            />
-        </Stack.Navigator>
-    </NavigationContainer>);
+                </View>
+                {status === "not_started" && (
+                    <TouchableOpacity style={[styles.button, styles.startButton]} onPress={() => handleStatusChange()}>
+                        <Text style={styles.buttonText}>Démarrer</Text>
+                    </TouchableOpacity>
+                )}
+                {status === "in_progress" && (
+                    <TouchableOpacity style={[styles.button, styles.stopButton]} onPress={() => handleStatusChange()}>
+                        <Text style={styles.buttonText}>Arrêter</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        );
+    };
+    return (
+        <NavigationContainer>
+            <Stack.Navigator>
+                <Stack.Screen
+                    name="MainScreen"
+                    options={{title: 'Liste des parties de la journée'}}
+                >
+                    {({navigation}) => (
+                        <View style={styles.container}>
+                            <View style={styles.table}>
+                                <View style={styles.row}>
+                                    <Text style={[styles.headerCell, styles.leftHeaderCell]}>Scénarios</Text>
+                                    <Text style={[styles.headerCell, styles.rightHeaderCell]}>Heures</Text>
+                                </View>
+                                {partOfDays.map((partOfDay) => {
+                                    const time = moment(partOfDay.attributes.day).format("HH:mm");
+                                    return (
+                                        <TouchableOpacity
+                                            style={styles.row}
+                                            key={partOfDay.id}
+                                            onPress={() => handlePartOfDayPress(partOfDay, navigation)}
+                                        >
+                                            <Text
+                                                style={[styles.leftCell]}>{partOfDay.attributes.scenario.data.attributes.title}</Text>
+                                            <Text
+                                                style={styles.rightCell}>{moment(partOfDay.attributes.day).format("HH:mm")}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    )}
+                </Stack.Screen>
+                <Stack.Screen
+                    name="PartOfDayDetailsScreen"
+                    component={PartOfDayDetailsScreen}
+                    options={{title: 'Détails de la partie'}}
+                />
+            </Stack.Navigator>
+        </NavigationContainer>
+    );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1, alignItems: 'center', justifyContent: 'center',
-    }, title: {
-        fontSize: 24, fontWeight: 'bold', marginBottom: 20,
-    }, table: {
-        width: '80%', borderWidth: 1, borderColor: '#ccc', borderRadius: 4, overflow: 'hidden',
-    }, row: {
-        flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc',
-    }, headerCell: {
-        padding: 10, backgroundColor: '#f7f7f7', fontWeight: 'bold',
-    }, leftHeaderCell: {
-        width: '70%',
-    }, rightHeaderCell: {
-        width: '30%',
-    }, cell: {
+    table: {
+        marginVertical: 20,
+        backgroundColor: '#fff',
+        borderRadius: 10,
         padding: 10,
-    }, leftCell: {
-        width: '70%',
-    }, rightCell: {
-        width: '30%', textAlign: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+
+        elevation: 5,
+    },
+    leftCell: {
+        flex: 1,
+    },
+    rightCell: {
+        flex: 1,
+        textAlign: 'right',
+    },
+    row: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: '#ccc',
+        paddingVertical: 10,
+    },
+    headerCell: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        flex: 1,
+    },
+    leftHeaderCell: {
+        textAlign: 'left',
+    },
+    rightHeaderCell: {
+        textAlign: 'right',
+    },
+
+    container: {
+        flex: 1,
+        padding: 16,
+        backgroundColor: '#FFFFFF',
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 16,
+    },
+    infoContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    infoLabel: {
+        flex: 1,
+        fontWeight: 'bold',
+        marginRight: 16,
+    },
+    infoText: {
+        flex: 2,
+        fontSize: 16,
+    },
+    statusContainer: {
+        borderRadius: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    statusText: {
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        fontSize: 16,
+    },
+    button: {
+        borderRadius: 8,
+        paddingVertical: 12,
+        alignItems: 'center',
+        marginTop: 16,
+    },
+    startButton: {
+        backgroundColor: '#F6C90E',
+    },
+    stopButton: {
+        backgroundColor: '#E5373A',
+    },
+    buttonText: {
+        color: '#FFFFFF',
+        fontWeight: 'bold',
+        fontSize: 16,
     },
 });
-
 export default App;
