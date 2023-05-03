@@ -16,10 +16,18 @@ const App = () => {
 
     const fetchData = async () => {
         try {
-            const response = await axios.get("http://localhost:1337/api/parts-of-days?populate=*");
-            setData(response.data.data.filter((partOfDay) => isSameDay(new Date(partOfDay.attributes.day), new Date())));
+            const response = await axios.get("http://localhost:1337/api/parts-of-days?populate=*", {
+                headers: {
+                    "Content-Type": "application/json;charset=UTF-8",
+                    "Access-Control-Allow-Origin": true,
+                    "Access-Control-Request-Headers": "Content-Type, x-requested-with",
+                }
+            });
+            const data = response.data.filter((partOfDay) => isSameDay(new Date(partOfDay.attributes.day), new Date()));
+            setData(data);
+            console.log(data)
         } catch (error) {
-            console.error(error);
+            console.log(error);
         }
     };
 
