@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Alert, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import axios from 'axios';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
@@ -119,7 +119,25 @@ const App = () => {
                     </TouchableOpacity>
                 )}
                 {status === "in_progress" && (
-                    <TouchableOpacity style={[styles.button, styles.stopButton]} onPress={() => handleStatusChange()}>
+                    <TouchableOpacity
+                        style={[styles.button, styles.stopButton]}
+                        onPress={() => {
+                            Alert.alert(
+                                'Confirmation',
+                                'Voulez-vous vraiment arrêter la partie ?',
+                                [
+                                    {
+                                        text: 'Annuler',
+                                        style: 'cancel',
+                                    },
+                                    {
+                                        text: 'OK',
+                                        onPress: () => handleStatusChange(),
+                                    },
+                                ]
+                            );
+                        }}
+                    >
                         <Text style={styles.buttonText}>Arrêter</Text>
                     </TouchableOpacity>
                 )}
