@@ -2,6 +2,9 @@
   "expo": {
     "name": "EscapeGameMobile",
     "slug": "EscapeGameMobile",
+    "splash": {
+      "image": "./src/assets/escape.jpg"
+    },
     "version": "1.0.0",
     "assetBundlePatterns": [
       "**/*"
