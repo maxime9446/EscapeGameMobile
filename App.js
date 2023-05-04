@@ -18,7 +18,7 @@ const App = () => {
 
     const fetchData = async () => {
         try {
-            const response = await axios.get("http://192.168.0.27:1337/api/parts-of-days?populate=*");
+            const response = await axios.get("http://10.43.130.199:1337/api/parts-of-days?populate=*");
             const today = new Date().toISOString().substr(0, 10); // Récupère la date du jour au format ISO
             const data = response.data.data.filter((partOfDay) => partOfDay.attributes.day.startsWith(today));
             setData(data);
@@ -33,7 +33,7 @@ const App = () => {
 
     const reloadPartsOfDays = () => {
         axios
-            .get('http://192.168.0.27:1337/api/parts-of-days?populate=*')
+            .get('http://10.43.130.199:1337/api/parts-of-days?populate=*')
             .then((response) => {
                 const partsOfDays = response.data.data.filter((partOfDay) =>
                     isSameDay(new Date(partOfDay.attributes.day), new Date())
@@ -50,6 +50,15 @@ const App = () => {
         const time = moment(partOfDay.attributes.day).format("HH:mm");
         const [status, setStatus] = useState(partOfDay.attributes.status);
 
+        let statusText;
+        if (status === "completed") {
+            statusText = "Terminé";
+        } else if (status === "in_progress") {
+            statusText = "En cours";
+        } else {
+            statusText = "Non commencé";
+        }
+
         const handleStatusChange = async (partOfDayId) => {
             try {
                 if (status === "not_started") {
@@ -60,7 +69,7 @@ const App = () => {
                             status: partOfDay.attributes.status === 'not_started' ? 'in_progress' : 'completed'
                         }
                     };
-                    await axios.put(`http://192.168.0.27:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
+                    await axios.put(`http://10.43.130.199:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
                     setStatus("in_progress");
                 } else if (status === "in_progress") {
                     const updatedPartOfDay = {
@@ -70,7 +79,7 @@ const App = () => {
                             status: partOfDay.attributes.status = 'completed'
                         }
                     };
-                    await axios.put(`http://192.168.0.27:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
+                    await axios.put(`http://10.43.130.199:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
                     setStatus("completed");
                 }
             } catch (error) {
@@ -86,6 +95,10 @@ const App = () => {
                     <Text style={styles.infoText}>{partOfDay.attributes.scenario.data.attributes.title}</Text>
                 </View>
                 <View style={styles.infoContainer}>
+                    <Text style={styles.infoLabel}>Salle :</Text>
+                    <Text style={styles.infoText}>{partOfDay.attributes.room.data.attributes.name}</Text>
+                </View>
+                <View style={styles.infoContainer}>
                     <Text style={styles.infoLabel}>Date:</Text>
                     <Text style={styles.infoText}>{formatedDate}</Text>
                 </View>
@@ -97,7 +110,7 @@ const App = () => {
                     <Text style={styles.infoLabel}>Statut:</Text>
                     <View
                         style={[styles.statusContainer, {backgroundColor: status === 'not_started' ? '#F6C90E' : status === 'in_progress' ? '#3DBB3D' : '#E5373A'}]}>
-                        <Text style={styles.statusText}>{status}</Text>
+                        <Text style={styles.statusText}>{statusText}</Text>
                     </View>
                 </View>
                 {status === "not_started" && (
