@@ -1,25 +1,27 @@
 import React, {useEffect, useState} from 'react';
-import {Alert, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {Alert, Button, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import axios from 'axios';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
-import {isSameDay} from 'date-fns';
 import moment from "moment";
 
 const Stack = createStackNavigator();
 
 const App = () => {
+
+    const ipAddress = "192.168.1.28:1337";
     const [partOfDays, setData] = useState([]);
 
     useEffect(() => {
-        fetchData();
+        fetchData().then()
     }, []);
 
 
+    // Récupération de tous les datas de party
     const fetchData = async () => {
         try {
-            const response = await axios.get("http://10.43.130.199:1337/api/parts-of-days?populate=*");
-            const today = new Date().toISOString().substr(0, 10); // Récupère la date du jour au format ISO
+            const response = await axios.get(`http://${ipAddress}/api/parts-of-days?populate=*`);
+            const today = new Date().toISOString().substr(0, 10);
             const data = response.data.data.filter((partOfDay) => partOfDay.attributes.day.startsWith(today));
             setData(data);
         } catch (error) {
@@ -27,23 +29,13 @@ const App = () => {
         }
     };
 
+    const reloadData = () => {
+        fetchData();
+    };
     const handlePartOfDayPress = (partOfDay, navigation) => {
         navigation.navigate('PartOfDayDetailsScreen', {partOfDay});
     };
 
-    const reloadPartsOfDays = () => {
-        axios
-            .get('http://10.43.130.199:1337/api/parts-of-days?populate=*')
-            .then((response) => {
-                const partsOfDays = response.data.data.filter((partOfDay) =>
-                    isSameDay(new Date(partOfDay.attributes.day), new Date())
-                )
-                setData(partsOfDays)
-            })
-            .catch((error) => {
-                console.error(error)
-            })
-    }
     const PartOfDayDetailsScreen = ({route}) => {
         const {partOfDay} = route.params;
         const formatedDate = moment(partOfDay.attributes.day).format("DD/MM/YYYY");
@@ -69,7 +61,7 @@ const App = () => {
                             status: partOfDay.attributes.status === 'not_started' ? 'in_progress' : 'completed'
                         }
                     };
-                    await axios.put(`http://10.43.130.199:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
+                    await axios.put(`http://${ipAddress}/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
                     setStatus("in_progress");
                 } else if (status === "in_progress") {
                     const updatedPartOfDay = {
@@ -79,7 +71,7 @@ const App = () => {
                             status: partOfDay.attributes.status = 'completed'
                         }
                     };
-                    await axios.put(`http://10.43.130.199:1337/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
+                    await axios.put(`http://${ipAddress}/api/parts-of-days/${partOfDay.id}`, updatedPartOfDay);
                     setStatus("completed");
                 }
             } catch (error) {
@@ -153,10 +145,12 @@ const App = () => {
                 >
                     {({navigation}) => (
                         <View style={styles.container}>
+                            <Button title="Recharger" onPress={reloadData}/>
                             <View style={styles.table}>
                                 <View style={styles.row}>
                                     <Text style={[styles.headerCell, styles.leftHeaderCell]}>Scénarios</Text>
                                     <Text style={[styles.headerCell, styles.rightHeaderCell]}>Heures</Text>
+                                    <Text style={[styles.headerCell, styles.rightHeaderCell]}></Text>
                                 </View>
                                 {partOfDays.map((partOfDay) => {
                                     const time = moment(partOfDay.attributes.day).format("HH:mm");
@@ -169,7 +163,12 @@ const App = () => {
                                             <Text
                                                 style={[styles.leftCell]}>{partOfDay.attributes.scenario.data.attributes.title}</Text>
                                             <Text
-                                                style={styles.rightCell}>{moment(partOfDay.attributes.day).format("HH:mm")}</Text>
+                                                style={styles.rightCell}>{time}</Text>
+                                            <Text style={styles.rightCell}>
+                                                {partOfDay.attributes.status === "in_progress" ? "En cours" :
+                                                    partOfDay.attributes.status === "not_started" ? "Non commencé" :
+                                                        partOfDay.attributes.status === "completed" ? "Terminé" : ""}
+                                            </Text>
                                         </TouchableOpacity>
                                     );
                                 })}
